@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-base text-content-primary">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OEETracker &bull; Industrial Control{% endblock %}</title>
+
+    <!-- Google Fonts: Space Grotesk (Display), IBM Plex Sans (Body), IBM Plex Mono (Data/Telemetry) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS with Custom Factory Floor Design System -->
+    <script>
+        tailwind = {
+            config: {
+                theme: {
+                    extend: {
+                        colors: {
+                            base: {
+                                DEFAULT: '#1C1D21',
+                                sub: '#151619',
+                            },
+                            panel: {
+                                DEFAULT: '#26282E',
+                                light: '#2F323A',
+                                dark: '#1F2025',
+                            },
+                            border: {
+                                DEFAULT: '#3A3D45',
+                                sub: '#2C2E35',
+                                bright: '#4F535E',
+                            },
+                            accent: {
+                                amber: '#E8A33D',
+                                'amber-hover': '#D9932B',
+                                'amber-muted': 'rgba(232, 163, 61, 0.12)',
+                            },
+                            status: {
+                                green: '#4CAF6D',
+                                'green-muted': 'rgba(76, 175, 109, 0.14)',
+                                'green-border': 'rgba(76, 175, 109, 0.35)',
+                                amber: '#E8A33D',
+                                'amber-muted': 'rgba(232, 163, 61, 0.14)',
+                                'amber-border': 'rgba(232, 163, 61, 0.35)',
+                                red: '#D9534F',
+                                'red-muted': 'rgba(217, 83, 79, 0.14)',
+                                'red-border': 'rgba(217, 83, 79, 0.35)',
+                            },
+                            content: {
+                                primary: '#EDEDEF',
+                                secondary: '#9A9DA6',
+                                muted: '#6D7079',
+                            }
+                        },
+                        fontFamily: {
+                            display: ['"Space Grotesk"', 'sans-serif'],
+                            sans: ['"IBM Plex Sans"', 'sans-serif'],
+                            mono: ['"IBM Plex Mono"', 'monospace'],
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- HTMX CDN -->
+    <script src="https://unpkg.com/htmx.org@1.9.11"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="h-full flex flex-col font-sans antialiased bg-base text-content-primary selection:bg-accent-amber selection:text-base">
+
+    <!-- Industrial Header Bar -->
+    <header class="border-b border-border bg-panel-dark/95 backdrop-blur sticky top-0 z-40">
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6">
+            <div class="flex items-center justify-between h-14">
+                
+                <!-- Left: Branding & Plant Beacon -->
+                <div class="flex items-center gap-6">
+                    <a href="/" class="flex items-center gap-2.5 group">
+                        <div class="h-7 w-7 rounded bg-accent-amber/10 border border-accent-amber/40 flex items-center justify-center text-accent-amber group-hover:bg-accent-amber/20 transition">
+                            <i data-lucide="gauge" class="w-4 h-4"></i>
+                        </div>
+                        <div class="flex items-baseline gap-1.5">
+                            <span class="font-display font-bold text-lg tracking-tight text-content-primary uppercase">
+                                OEE<span class="text-accent-amber font-extrabold">TRACKER</span>
+                            </span>
+                            <span class="hidden sm:inline-block font-mono text-[10px] font-semibold text-content-muted tracking-widest uppercase">
+                                // SHOPFLOOR v1.0
+                            </span>
+                        </div>
+                    </a>
+
+                    <!-- Status Beacon -->
+                    <div class="hidden md:flex items-center gap-2 px-2.5 py-1 rounded bg-base border border-border-sub text-[11px] font-mono">
+                        <span class="h-2 w-2 rounded-full bg-status-green animate-pulse"></span>
+                        <span class="text-content-secondary uppercase">SYS_ONLINE</span>
+                    </div>
+                </div>
+
+                <!-- Navigation Tabs -->
+                <nav class="flex items-center space-x-1 sm:space-x-2">
+                    <a href="/" class="px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider text-content-secondary hover:text-content-primary hover:bg-panel transition flex items-center gap-2 border border-transparent hover:border-border">
+                        <i data-lucide="activity" class="w-3.5 h-3.5 text-accent-amber"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="/reports" class="px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider text-content-secondary hover:text-content-primary hover:bg-panel transition flex items-center gap-2 border border-transparent hover:border-border">
+                        <i data-lucide="line-chart" class="w-3.5 h-3.5 text-accent-amber"></i>
+                        <span>Reports</span>
+                    </a>
+                    <a href="/machines" class="px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider text-content-secondary hover:text-content-primary hover:bg-panel transition flex items-center gap-2 border border-transparent hover:border-border">
+                        <i data-lucide="cpu" class="w-3.5 h-3.5 text-content-muted"></i>
+                        <span>Machines</span>
+                    </a>
+                    <a href="/shifts" class="px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider text-content-secondary hover:text-content-primary hover:bg-panel transition flex items-center gap-2 border border-transparent hover:border-border">
+                        <i data-lucide="clock" class="w-3.5 h-3.5 text-content-muted"></i>
+                        <span>Shifts</span>
+                    </a>
+                    <a href="/downtime-events" class="px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider text-content-secondary hover:text-content-primary hover:bg-panel transition flex items-center gap-2 border border-transparent hover:border-border">
+                        <i data-lucide="timer-off" class="w-3.5 h-3.5 text-status-amber"></i>
+                        <span>Downtime</span>
+                    </a>
+                    <a href="/production-runs" class="px-3 py-1.5 rounded text-xs font-semibold uppercase tracking-wider text-content-secondary hover:text-content-primary hover:bg-panel transition flex items-center gap-2 border border-transparent hover:border-border">
+                        <i data-lucide="boxes" class="w-3.5 h-3.5 text-status-green"></i>
+                        <span>Production</span>
+                    </a>
+                    <a href="/docs" target="_blank" class="hidden sm:flex px-2 py-1 rounded text-[11px] font-mono text-content-muted hover:text-content-primary bg-base hover:bg-panel transition items-center gap-1 border border-border ml-2">
+                        <i data-lucide="terminal" class="w-3 h-3"></i>
+                        <span>API</span>
+                    </a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Area -->
+    <main class="flex-1 max-w-[1600px] w-full mx-auto px-4 sm:px-6 py-6">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Floor Control Status Footer -->
+    <footer class="border-t border-border bg-panel-dark/95 py-3 text-xs font-mono text-content-muted">
+        <div class="max-w-[1600px] mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div class="flex items-center gap-3">
+                <span>OEETracker &bull; Single-Tenant Manufacturing Telemetry</span>
+                <span class="text-border">|</span>
+                <span>DB: SQLite Local</span>
+            </div>
+            <div class="flex items-center gap-4 text-[11px]">
+                <span class="text-content-secondary">AUTOPROCESSING: ACTIVE</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        lucide.createIcons();
+        document.body.addEventListener('htmx:afterSwap', function() {
+            lucide.createIcons();
+        });
+    </script>
+</body>
+</html>

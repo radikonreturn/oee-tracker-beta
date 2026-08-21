@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}{% if shift %}Edit Shift: {{ shift.name }}{% else %}Register Shift{% endif %} // OEETracker{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-4">
+    <div class="flex items-center justify-between bg-panel border border-border rounded-lg p-3">
+        <div class="flex items-center gap-3">
+            <div class="h-8 w-1 bg-accent-amber rounded-full"></div>
+            <div>
+                <h1 class="font-display font-bold text-base uppercase tracking-tight text-content-primary">
+                    {% if shift %}Configure Shift: {{ shift.name }}{% else %}Define New Operational Shift{% endif %}
+                </h1>
+                <p class="font-mono text-xs text-content-muted">Shift time window boundaries and automatic break deductions</p>
+            </div>
+        </div>
+        <a href="/shifts" class="font-mono text-xs text-content-muted hover:text-content-primary flex items-center gap-1">
+            <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> CANCEL
+        </a>
+    </div>
+
+    <form method="POST" action="{% if shift %}/shifts/{{ shift.id }}{% else %}/shifts{% endif %}" class="bg-panel border border-border rounded-lg p-5 space-y-4 text-xs font-sans">
+        <div>
+            <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">Shift Name / Designation</label>
+            <input type="text" name="name" value="{{ shift.name if shift else '' }}" required placeholder="e.g. Morning Shift" class="w-full bg-base border border-border rounded px-3 py-2 text-content-primary text-xs focus:outline-none focus:border-accent-amber">
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+                <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">Start Time (24h)</label>
+                <input type="time" name="start_time" value="{{ shift.start_time.strftime('%H:%M') if shift else '08:00' }}" required class="w-full bg-base border border-border rounded px-3 py-2 text-content-primary font-mono text-xs focus:outline-none focus:border-accent-amber">
+            </div>
+            <div>
+                <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">End Time (24h)</label>
+                <input type="time" name="end_time" value="{{ shift.end_time.strftime('%H:%M') if shift else '16:00' }}" required class="w-full bg-base border border-border rounded px-3 py-2 text-content-primary font-mono text-xs focus:outline-none focus:border-accent-amber">
+            </div>
+        </div>
+
+        <div>
+            <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">Planned Break Time (Minutes)</label>
+            <input type="number" min="0" step="1" name="planned_break_minutes" value="{{ shift.planned_break_minutes if shift else 0 }}" required class="w-full bg-base border border-border rounded px-3 py-2 text-content-primary font-mono text-xs focus:outline-none focus:border-accent-amber">
+            <p class="font-mono text-[10px] text-content-muted mt-1">// Automatically deducted from total shift duration for Planned Production Time.</p>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+            <input type="checkbox" id="is_active" name="is_active" value="true" {% if not shift or shift.is_active %}checked{% endif %} class="rounded bg-base border-border text-accent-amber focus:ring-0">
+            <label for="is_active" class="font-mono text-xs text-content-secondary">Shift Active & Available for Scheduling</label>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-4 border-t border-border font-mono">
+            <a href="/shifts" class="px-3 py-1.5 rounded text-xs text-content-muted hover:text-content-primary transition">DISCARD</a>
+            <button type="submit" class="px-4 py-1.5 bg-accent-amber hover:bg-accent-amber-hover text-base font-bold text-xs uppercase tracking-wider rounded transition">
+                SAVE SHIFT
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

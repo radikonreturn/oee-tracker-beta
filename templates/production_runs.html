@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}Production Runs // OEETracker{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+    <!-- Header -->
+    <div class="flex items-center justify-between bg-panel border border-border rounded-lg p-3">
+        <div class="flex items-center gap-3">
+            <div class="h-8 w-1 bg-status-green rounded-full"></div>
+            <div>
+                <h1 class="font-display font-bold text-base uppercase tracking-tight text-content-primary">
+                    Production Output & Quality Logging
+                </h1>
+                <p class="font-mono text-xs text-content-muted">Record unit counts, scrap defects, and actual shift run throughput against theoretical benchmark speed</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Production Run Form -->
+    <div class="bg-panel border border-border rounded-lg p-4">
+        <h2 class="font-mono text-xs font-bold uppercase tracking-wider text-content-primary mb-3 flex items-center gap-2">
+            <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-status-green"></i>
+            Log Production Batch Run
+        </h2>
+
+        <form method="POST" action="/production-runs" class="space-y-3 font-sans text-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                    <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">Equipment Station</label>
+                    <select name="machine_id" required class="w-full bg-base border border-border rounded px-2.5 py-1.5 text-content-primary text-xs focus:outline-none focus:border-status-green">
+                        {% for m in machines or [] %}
+                        <option value="{{ m.id }}">{{ m.code }} &bull; {{ m.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">Shift</label>
+                    <select name="shift_id" class="w-full bg-base border border-border rounded px-2.5 py-1.5 text-content-primary text-xs focus:outline-none focus:border-status-green">
+                        <option value="">No specific shift</option>
+                        {% for s in shifts or [] %}
+                        <option value="{{ s.id }}">{{ s.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">Part / SKU Number</label>
+                    <input type="text" name="product_code" placeholder="e.g. PART-A100" class="w-full bg-base border border-border rounded px-2.5 py-1.5 text-content-primary font-mono text-xs focus:outline-none focus:border-status-green">
+                </div>
+
+                <div>
+                    <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">Product Description</label>
+                    <input type="text" name="product_name" placeholder="e.g. Aluminum Gear Housing" class="w-full bg-base border border-border rounded px-2.5 py-1.5 text-content-primary text-xs focus:outline-none focus:border-status-green">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+                <div>
+                    <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">Target Quantity</label>
+                    <input type="number" name="target_units" value="0" min="0" class="w-full bg-base border border-border rounded px-2.5 py-1.5 text-content-primary font-mono text-xs focus:outline-none focus:border-status-green">
+                </div>
+
+                <div>
+                    <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">Total Units Counted</label>
+                    <input type="number" name="total_units" value="0" min="0" required class="w-full bg-base border border-border rounded px-2.5 py-1.5 text-content-primary font-mono text-xs focus:outline-none focus:border-status-green">
+                </div>
+
+                <div>
+                    <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">Scrap / Defect Count</label>
+                    <input type="number" name="scrap_units" value="0" min="0" required class="w-full bg-base border border-border rounded px-2.5 py-1.5 text-content-primary font-mono text-xs focus:outline-none focus:border-status-green">
+                </div>
+
+                <div>
+                    <button type="submit" class="w-full py-1.5 bg-status-green hover:bg-status-green/90 text-base font-mono font-bold text-xs uppercase tracking-wider rounded transition flex items-center justify-center gap-1.5">
+                        <i data-lucide="check" class="w-3.5 h-3.5"></i> COMMIT RUN
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Production Runs Table -->
+    <div class="bg-panel border border-border rounded-lg overflow-hidden">
+        <div class="p-3 border-b border-border bg-panel-dark flex items-center justify-between">
+            <h2 class="font-mono text-xs font-bold uppercase tracking-wider text-content-primary">Production Run Ledger</h2>
+            <span class="font-mono text-[11px] text-content-muted">// OUTPUT_LOG</span>
+        </div>
+        <table class="w-full text-left text-xs font-sans">
+            <thead class="font-mono text-[11px] uppercase tracking-wider bg-base text-content-muted border-b border-border">
+                <tr>
+                    <th class="px-4 py-2.5 font-semibold">Station</th>
+                    <th class="px-4 py-2.5 font-semibold">Product SKU</th>
+                    <th class="px-4 py-2.5 font-semibold">Shift</th>
+                    <th class="px-4 py-2.5 font-semibold">Total Output (Target)</th>
+                    <th class="px-4 py-2.5 font-semibold">Good / Scrap Units</th>
+                    <th class="px-4 py-2.5 font-semibold">Quality Yield</th>
+                    <th class="px-4 py-2.5 font-semibold">Timestamp</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-border-sub">
+                {% for run in runs or [] %}
+                <tr class="hover:bg-panel-light/60 transition font-mono">
+                    <td class="px-4 py-3 font-semibold text-content-primary">{{ run.machine.code if run.machine else '#' ~ run.machine_id }}</td>
+                    <td class="px-4 py-3 font-sans">
+                        <div class="text-content-primary font-semibold text-xs">{{ run.product_name or 'Standard Run' }}</div>
+                        <div class="text-[11px] font-mono text-content-muted">{{ run.product_code or '—' }}</div>
+                    </td>
+                    <td class="px-4 py-3 text-content-secondary text-[11px] font-sans">{{ run.shift.name if run.shift else '—' }}</td>
+                    <td class="px-4 py-3 text-[11px]">
+                        <span class="font-bold text-content-primary">{{ run.total_units }}</span>
+                        <span class="text-content-muted">/ {{ run.target_units }}</span>
+                    </td>
+                    <td class="px-4 py-3 text-[11px]">
+                        <span class="text-content-primary font-semibold">{{ [run.total_units - run.scrap_units, 0] | max }}</span>
+                        <span class="text-status-red">({{ run.scrap_units }} scrap)</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if run.total_units > 0 %}
+                        {% set q_rate = ((run.total_units - run.scrap_units) / run.total_units) * 100 %}
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold {% if q_rate >= 85 %}bg-status-green-muted text-status-green border border-status-green-border{% elif q_rate >= 60 %}bg-status-amber-muted text-status-amber border border-status-amber-border{% else %}bg-status-red-muted text-status-red border border-status-red-border{% endif %}">
+                            {{ "%.1f" | format(q_rate) }}%
+                        </span>
+                        {% else %}
+                        <span class="text-content-muted text-xs">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-[11px] text-content-muted">{{ run.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center py-6 font-mono text-xs text-content-muted">NO PRODUCTION RUNS COMMITTED.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

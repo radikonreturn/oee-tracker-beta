@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+
+{% block title %}OEE Trends & Reports // OEETracker{% endblock %}
+
+{% block content %}
+<!-- Chart.js CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+<div class="space-y-5">
+    <!-- Top Filter & Control Telemetry Bar -->
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 bg-panel border border-border rounded-lg p-3">
+        <div class="flex items-center gap-3">
+            <div class="h-8 w-1 bg-accent-amber rounded-full"></div>
+            <div>
+                <h1 class="font-display font-bold text-base uppercase tracking-tight text-content-primary">
+                    Historical OEE Trends & Reporting
+                </h1>
+                <p class="font-mono text-xs text-content-muted">Longitudinal trend analysis of Availability, Performance, and Quality yield</p>
+            </div>
+        </div>
+
+        <!-- Filter Form with HTMX target -->
+        <form hx-get="/reports/chart" hx-target="#reports-container" hx-select="#reports-container" hx-swap="outerHTML" class="flex flex-wrap items-center gap-2 text-xs font-mono">
+            <!-- Machine Selector -->
+            <div class="flex items-center gap-1.5 bg-base px-2.5 py-1.5 rounded border border-border">
+                <span class="text-content-muted uppercase tracking-wider text-[11px]">Station:</span>
+                <select name="machine_id" onchange="this.form.requestSubmit()" class="bg-transparent text-content-primary focus:outline-none cursor-pointer">
+                    {% for m in machines or [] %}
+                    <option value="{{ m.id }}" {% if selected_machine_id == m.id %}selected{% endif %} class="bg-base text-content-primary">
+                        {{ m.code }} &bull; {{ m.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Date Range Selector -->
+            <div class="flex items-center bg-base rounded border border-border overflow-hidden">
+                <button type="submit" name="range" value="7d" class="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition {% if range == '7d' %}bg-panel-light text-accent-amber border-r border-border{% else %}text-content-muted hover:text-content-primary border-r border-border{% endif %}">
+                    7 Days
+                </button>
+                <button type="submit" name="range" value="30d" class="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition {% if range == '30d' %}bg-panel-light text-accent-amber{% else %}text-content-muted hover:text-content-primary{% endif %}">
+                    30 Days
+                </button>
+            </div>
+
+            <!-- Granularity Selector -->
+            <div class="flex items-center bg-base rounded border border-border overflow-hidden">
+                <button type="submit" name="granularity" value="daily" class="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition {% if granularity == 'daily' %}bg-panel-light text-accent-amber border-r border-border{% else %}text-content-muted hover:text-content-primary border-r border-border{% endif %}">
+                    Daily
+                </button>
+                <button type="submit" name="granularity" value="weekly" class="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition {% if granularity == 'weekly' %}bg-panel-light text-accent-amber{% else %}text-content-muted hover:text-content-primary{% endif %}">
+                    Weekly
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Reports Content Container -->
+    <div id="reports-container" class="space-y-5">
+        <!-- Hidden JSON Payload for Chart.js -->
+        <script id="trend-data-json" type="application/json">
+            {{ trend_data | tojson | safe }}
+        </script>
+
+        <!-- Chart Section -->
+        <div class="bg-panel border border-border rounded-lg p-4">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="line-chart" class="w-4 h-4 text-accent-amber"></i>
+                    <h2 class="font-display font-semibold text-xs uppercase tracking-wider text-content-primary">
+                        {{ selected_machine.name if selected_machine else 'Equipment' }} &bull; OEE & Factor Trajectory ({{ range | upper }} / {{ granularity | upper }})
+                    </h2>
+                </div>
+                <span class="font-mono text-[11px] text-content-muted">// SCADA_TREND_RENDER</span>
+            </div>
+
+            <div class="relative h-72 sm:h-80 w-full">
+                <canvas id="oeeTrendsChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Tabular Detail Breakdown -->
+        <div class="bg-panel border border-border rounded-lg overflow-hidden">
+            <div class="p-3 border-b border-border bg-panel-dark flex items-center justify-between">
+                <h2 class="font-mono text-xs font-bold uppercase tracking-wider text-content-primary">Historical Telemetry Ledger</h2>
+                <span class="font-mono text-[11px] text-content-muted">// TABULAR_METRICS</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs font-mono">
+                    <thead class="text-[11px] uppercase tracking-wider bg-base text-content-muted border-b border-border">
+                        <tr>
+                            <th class="px-4 py-2.5 font-semibold">Time Bucket</th>
+                            <th class="px-4 py-2.5 font-semibold">OEE</th>
+                            <th class="px-4 py-2.5 font-semibold">Availability</th>
+                            <th class="px-4 py-2.5 font-semibold">Performance</th>
+                            <th class="px-4 py-2.5 font-semibold">Quality</th>
+                            <th class="px-4 py-2.5 font-semibold">Output (Total / Good)</th>
+                            <th class="px-4 py-2.5 font-semibold">Scrap Units</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border-sub text-[11px]">
+                        {% for row in trend_data or [] %}
+                        <tr class="hover:bg-panel-light/60 transition">
+                            <td class="px-4 py-2.5 font-semibold text-content-primary">{{ row.label }}</td>
+                            <td class="px-4 py-2.5">
+                                {% if row.oee >= 0.85 %}
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-status-green-muted text-status-green border border-status-green-border">
+                                    {{ "%.1f" | format(row.oee * 100) }}%
+                                </span>
+                                {% elif row.oee >= 0.60 %}
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-status-amber-muted text-status-amber border border-status-amber-border">
+                                    {{ "%.1f" | format(row.oee * 100) }}%
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-status-red-muted text-status-red border border-status-red-border">
+                                    {{ "%.1f" | format(row.oee * 100) }}%
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2.5 text-content-primary">{{ "%.1f" | format(row.availability * 100) }}%</td>
+                            <td class="px-4 py-2.5 text-content-primary">{{ "%.1f" | format(row.performance * 100) }}%</td>
+                            <td class="px-4 py-2.5 text-content-primary">{{ "%.1f" | format(row.quality * 100) }}%</td>
+                            <td class="px-4 py-2.5 text-content-secondary">{{ row.total_units }} / <span class="text-content-primary">{{ row.good_units }}</span></td>
+                            <td class="px-4 py-2.5 text-status-red">{{ row.scrap_units }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-6 text-content-muted">NO TREND DATA FOUND FOR SELECTED WINDOW.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function renderOEEChart() {
+        const canvas = document.getElementById('oeeTrendsChart');
+        if (!canvas) return;
+
+        if (window.oeeTrendsChartInstance) {
+            window.oeeTrendsChartInstance.destroy();
+            window.oeeTrendsChartInstance = null;
+        }
+
+        const dataScript = document.getElementById('trend-data-json');
+        if (!dataScript) return;
+
+        let rawData = [];
+        try {
+            rawData = JSON.parse(dataScript.textContent || '[]');
+        } catch (e) {
+            console.error('Failed to parse trend data:', e);
+            return;
+        }
+
+        const labels = rawData.map(d => d.label);
+        const oeeValues = rawData.map(d => Number((d.oee * 100).toFixed(1)));
+        const availValues = rawData.map(d => Number((d.availability * 100).toFixed(1)));
+        const perfValues = rawData.map(d => Number((d.performance * 100).toFixed(1)));
+        const qualValues = rawData.map(d => Number((d.quality * 100).toFixed(1)));
+
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        window.oeeTrendsChartInstance = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Overall OEE',
+                        data: oeeValues,
+                        borderColor: '#E8A33D',
+                        backgroundColor: 'rgba(232, 163, 61, 0.1)',
+                        borderWidth: 2.5,
+                        pointBackgroundColor: '#E8A33D',
+                        pointBorderColor: '#1C1D21',
+                        pointRadius: 4,
+                        tension: 0.25,
+                        fill: true
+                    },
+                    {
+                        label: 'Availability',
+                        data: availValues,
+                        borderColor: '#4CAF6D',
+                        borderWidth: 1.5,
+                        pointBackgroundColor: '#4CAF6D',
+                        pointRadius: 3,
+                        borderDash: [3, 3],
+                        tension: 0.2
+                    },
+                    {
+                        label: 'Performance',
+                        data: perfValues,
+                        borderColor: '#60A5FA',
+                        borderWidth: 1.5,
+                        pointBackgroundColor: '#60A5FA',
+                        pointRadius: 3,
+                        borderDash: [3, 3],
+                        tension: 0.2
+                    },
+                    {
+                        label: 'Quality',
+                        data: qualValues,
+                        borderColor: '#2DD4BF',
+                        borderWidth: 1.5,
+                        pointBackgroundColor: '#2DD4BF',
+                        pointRadius: 3,
+                        borderDash: [3, 3],
+                        tension: 0.2
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: prefersReducedMotion ? false : { duration: 400 },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                scales: {
+                    x: {
+                        grid: { color: '#2C2E35' },
+                        ticks: {
+                            color: '#9A9DA6',
+                            font: { family: '"IBM Plex Mono"', size: 10 }
+                        }
+                    },
+                    y: {
+                        min: 0,
+                        max: 100,
+                        grid: { color: '#3A3D45' },
+                        ticks: {
+                            color: '#9A9DA6',
+                            font: { family: '"IBM Plex Mono"', size: 10 },
+                            callback: function(val) { return val + '%'; }
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            color: '#EDEDEF',
+                            font: { family: '"IBM Plex Sans"', size: 11 },
+                            usePointStyle: true,
+                            boxWidth: 6,
+                            padding: 15
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: '#1F2025',
+                        titleColor: '#EDEDEF',
+                        bodyColor: '#EDEDEF',
+                        borderColor: '#3A3D45',
+                        borderWidth: 1,
+                        padding: 10,
+                        callbacks: {
+                            label: function(ctx) {
+                                return ` ${ctx.dataset.label}: ${ctx.raw}%`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    renderOEEChart();
+    document.body.addEventListener('htmx:afterSwap', function() {
+        renderOEEChart();
+    });
+</script>
+{% endblock %}

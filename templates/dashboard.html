@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Shopfloor Dashboard // OEETracker{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+
+    <!-- Top Action & Filter Telemetry Bar -->
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 bg-panel border border-border rounded-lg p-3">
+        <div class="flex items-center gap-3">
+            <div class="h-8 w-1 bg-accent-amber rounded-full"></div>
+            <div>
+                <h1 class="font-display font-bold text-base uppercase tracking-tight text-content-primary">
+                    Shopfloor Telemetry & OEE Matrix
+                </h1>
+                <p class="font-mono text-xs text-content-muted">Overall Equipment Effectiveness, Availability, Performance & Scrap</p>
+            </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <form method="GET" action="/" class="flex flex-wrap items-center gap-2 text-xs font-mono">
+            <div class="flex items-center gap-1.5 bg-base px-2.5 py-1.5 rounded border border-border">
+                <span class="text-content-muted uppercase tracking-wider text-[11px]">Shift:</span>
+                <select name="shift_id" onchange="this.form.submit()" class="bg-transparent text-content-primary focus:outline-none cursor-pointer">
+                    <option value="" class="bg-base text-content-primary">ALL SHIFTS</option>
+                    {% for shift in shifts or [] %}
+                    <option value="{{ shift.id }}" {% if shift_id == shift.id %}selected{% endif %} class="bg-base text-content-primary">{{ shift.name | upper }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit" class="px-3 py-1.5 bg-panel-light hover:bg-border text-content-primary font-semibold uppercase tracking-wider rounded border border-border-bright transition flex items-center gap-1.5">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-accent-amber"></i> Sync
+            </button>
+        </form>
+    </div>
+
+    <!-- Telemetry KPI Summary Cards -->
+    {% set total_machines = metrics | length %}
+    {% set ns = namespace(avg_oee=0, avg_avail=0, avg_perf=0, avg_qual=0, total_produced=0, total_scrap=0) %}
+    {% for m in metrics %}
+        {% set ns.avg_oee = ns.avg_oee + m.oee %}
+        {% set ns.avg_avail = ns.avg_avail + m.availability %}
+        {% set ns.avg_perf = ns.avg_perf + m.performance %}
+        {% set ns.avg_qual = ns.avg_qual + m.quality %}
+        {% set ns.total_produced = ns.total_produced + m.total_units %}
+        {% set ns.total_scrap = ns.total_scrap + m.scrap_units %}
+    {% endfor %}
+
+    {% if total_machines > 0 %}
+        {% set avg_oee = (ns.avg_oee / total_machines) * 100 %}
+        {% set avg_avail = (ns.avg_avail / total_machines) * 100 %}
+        {% set avg_perf = (ns.avg_perf / total_machines) * 100 %}
+        {% set avg_qual = (ns.avg_qual / total_machines) * 100 %}
+    {% else %}
+        {% set avg_oee = 0 %}
+        {% set avg_avail = 0 %}
+        {% set avg_perf = 0 %}
+        {% set avg_qual = 0 %}
+    {% endif %}
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <!-- Plant Overall OEE -->
+        <div class="bg-panel border border-border rounded-lg p-4 relative overflow-hidden">
+            <div class="flex items-center justify-between">
+                <span class="font-mono text-xs font-semibold uppercase tracking-widest text-content-muted">Plant Avg OEE</span>
+                <span class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-base border border-border text-content-secondary">TGT 85.0%</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-2">
+                <span class="font-mono text-3xl font-bold tracking-tight text-content-primary">{{ "%.1f" | format(avg_oee) }}%</span>
+                <span class="font-mono text-xs {% if avg_oee >= 85 %}text-status-green{% elif avg_oee >= 60 %}text-status-amber{% else %}text-status-red{% endif %}">
+                    {% if avg_oee >= 85 %}▲ WORLD CLASS{% elif avg_oee >= 60 %}▲ OPERATIONAL{% else %}▼ CRITICAL{% endif %}
+                </span>
+            </div>
+            <div class="w-full bg-base h-1 rounded-full mt-3 overflow-hidden border border-border-sub">
+                <div class="h-full {% if avg_oee >= 85 %}bg-status-green{% elif avg_oee >= 60 %}bg-status-amber{% else %}bg-status-red{% endif %}" style="width: {{ [avg_oee, 100] | min }}%"></div>
+            </div>
+        </div>
+
+        <!-- Availability -->
+        <div class="bg-panel border border-border rounded-lg p-4 relative overflow-hidden">
+            <div class="flex items-center justify-between">
+                <span class="font-mono text-xs font-semibold uppercase tracking-widest text-content-muted">Availability</span>
+                <span class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-base border border-border text-content-secondary">TGT 90.0%</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-2">
+                <span class="font-mono text-3xl font-bold tracking-tight text-content-primary">{{ "%.1f" | format(avg_avail) }}%</span>
+                <span class="font-mono text-xs text-content-muted">OPERATING</span>
+            </div>
+            <div class="w-full bg-base h-1 rounded-full mt-3 overflow-hidden border border-border-sub">
+                <div class="h-full bg-content-secondary" style="width: {{ [avg_avail, 100] | min }}%"></div>
+            </div>
+        </div>
+
+        <!-- Performance -->
+        <div class="bg-panel border border-border rounded-lg p-4 relative overflow-hidden">
+            <div class="flex items-center justify-between">
+                <span class="font-mono text-xs font-semibold uppercase tracking-widest text-content-muted">Performance</span>
+                <span class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-base border border-border text-content-secondary">TGT 95.0%</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-2">
+                <span class="font-mono text-3xl font-bold tracking-tight text-content-primary">{{ "%.1f" | format(avg_perf) }}%</span>
+                <span class="font-mono text-xs text-content-muted">SPEED RATIO</span>
+            </div>
+            <div class="w-full bg-base h-1 rounded-full mt-3 overflow-hidden border border-border-sub">
+                <div class="h-full bg-content-secondary" style="width: {{ [avg_perf, 100] | min }}%"></div>
+            </div>
+        </div>
+
+        <!-- Quality -->
+        <div class="bg-panel border border-border rounded-lg p-4 relative overflow-hidden">
+            <div class="flex items-center justify-between">
+                <span class="font-mono text-xs font-semibold uppercase tracking-widest text-content-muted">Quality Yield</span>
+                <span class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-base border border-border text-content-secondary">SCRAP: {{ ns.total_scrap }}</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-2">
+                <span class="font-mono text-3xl font-bold tracking-tight text-content-primary">{{ "%.1f" | format(avg_qual) }}%</span>
+                <span class="font-mono text-xs text-content-muted">GOOD YIELD</span>
+            </div>
+            <div class="w-full bg-base h-1 rounded-full mt-3 overflow-hidden border border-border-sub">
+                <div class="h-full bg-content-secondary" style="width: {{ [avg_qual, 100] | min }}%"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Machine Breakdown Matrix -->
+    <div class="bg-panel border border-border rounded-lg overflow-hidden">
+        <div class="p-3 border-b border-border bg-panel-dark flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i data-lucide="table" class="w-4 h-4 text-accent-amber"></i>
+                <h2 class="font-display font-semibold text-xs uppercase tracking-wider text-content-primary">Equipment Telemetry Breakdown</h2>
+            </div>
+            <div class="font-mono text-[11px] text-content-muted flex items-center gap-1.5">
+                <span class="h-1.5 w-1.5 rounded-full bg-status-green animate-pulse"></span>
+                <span>POLL_FREQ: 15s</span>
+            </div>
+        </div>
+
+        <div id="dashboard-table" hx-get="/dashboard/table" hx-trigger="every 15s" hx-swap="innerHTML" class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-sans">
+                <thead class="font-mono text-[11px] uppercase tracking-wider bg-base text-content-muted border-b border-border">
+                    <tr>
+                        <th class="px-4 py-2.5 font-semibold">Machine / Line</th>
+                        <th class="px-4 py-2.5 font-semibold">OEE Score</th>
+                        <th class="px-4 py-2.5 font-semibold">Availability</th>
+                        <th class="px-4 py-2.5 font-semibold">Performance</th>
+                        <th class="px-4 py-2.5 font-semibold">Quality</th>
+                        <th class="px-4 py-2.5 font-semibold">Time (Run / Down)</th>
+                        <th class="px-4 py-2.5 font-semibold">Output (Units / Scrap)</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-border-sub">
+                    {% for m in metrics %}
+                    <tr class="hover:bg-panel-light/60 transition">
+                        <!-- Machine Identification -->
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2">
+                                <span class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-base border border-border font-semibold text-accent-amber">
+                                    #{{ m.machine_id }}
+                                </span>
+                                <div>
+                                    <div class="font-semibold text-content-primary">{{ m.machine_name or ('Line #' ~ m.machine_id) }}</div>
+                                </div>
+                            </div>
+                        </td>
+
+                        <!-- OEE Score -->
+                        <td class="px-4 py-3 font-mono">
+                            {% if m.oee >= 0.85 %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-status-green-muted text-status-green border border-status-green-border">
+                                {{ "%.1f" | format(m.oee * 100) }}%
+                            </span>
+                            {% elif m.oee >= 0.60 %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-status-amber-muted text-status-amber border border-status-amber-border">
+                                {{ "%.1f" | format(m.oee * 100) }}%
+                            </span>
+                            {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold bg-status-red-muted text-status-red border border-status-red-border">
+                                {{ "%.1f" | format(m.oee * 100) }}%
+                            </span>
+                            {% endif %}
+                        </td>
+
+                        <!-- Availability Score -->
+                        <td class="px-4 py-3 font-mono">
+                            <div class="font-semibold text-content-primary">{{ "%.1f" | format(m.availability * 100) }}%</div>
+                            <div class="text-[11px] text-content-muted">{{ "%.0f" | format(m.planned_production_time_seconds / 60) }}m plan</div>
+                        </td>
+
+                        <!-- Performance Score -->
+                        <td class="px-4 py-3 font-mono">
+                            <div class="font-semibold text-content-primary">{{ "%.1f" | format(m.performance * 100) }}%</div>
+                            <div class="text-[11px] text-content-muted">{{ "%.0f" | format(m.run_time_seconds / 60) }}m run</div>
+                        </td>
+
+                        <!-- Quality Score -->
+                        <td class="px-4 py-3 font-mono">
+                            <div class="font-semibold text-content-primary">{{ "%.1f" | format(m.quality * 100) }}%</div>
+                            <div class="text-[11px] text-status-red">{{ m.scrap_units }} scrap</div>
+                        </td>
+
+                        <!-- Run & Downtime Breakdown -->
+                        <td class="px-4 py-3 font-mono text-[11px]">
+                            <div class="text-content-secondary">Run: <span class="text-content-primary font-semibold">{{ "%.1f" | format(m.run_time_seconds / 3600) }}h</span></div>
+                            <div class="text-content-muted">Down: <span class="text-status-red font-semibold">{{ "%.0f" | format(m.unplanned_downtime_seconds / 60) }}m</span></div>
+                        </td>
+
+                        <!-- Output Count -->
+                        <td class="px-4 py-3 font-mono text-[11px]">
+                            <div class="text-content-primary font-semibold">{{ m.good_units }} good <span class="text-content-muted font-normal">/ {{ m.total_units }}</span></div>
+                            <div class="text-content-muted">Target: {{ m.target_units }}</div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-6 font-mono text-xs text-content-muted">
+                            NO ACTIVE MACHINE METRICS RECORDED IN THE CURRENT WINDOW.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Shift Schedules // OEETracker{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+    <div class="flex items-center justify-between bg-panel border border-border rounded-lg p-3">
+        <div class="flex items-center gap-3">
+            <div class="h-8 w-1 bg-accent-amber rounded-full"></div>
+            <div>
+                <h1 class="font-display font-bold text-base uppercase tracking-tight text-content-primary">
+                    Shift Schedules & Planned Breaks
+                </h1>
+                <p class="font-mono text-xs text-content-muted">Operating shift rosters, scheduled working hours, and standard break deductions</p>
+            </div>
+        </div>
+        <a href="/shifts/new" class="px-3 py-1.5 bg-accent-amber hover:bg-accent-amber-hover text-base font-bold text-xs uppercase tracking-wider rounded transition flex items-center gap-1.5 shadow-sm">
+            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Shift
+        </a>
+    </div>
+
+    <div class="bg-panel border border-border rounded-lg overflow-hidden">
+        <table class="w-full text-left text-xs font-sans">
+            <thead class="font-mono text-[11px] uppercase tracking-wider bg-base text-content-muted border-b border-border">
+                <tr>
+                    <th class="px-4 py-2.5 font-semibold">Shift Designation</th>
+                    <th class="px-4 py-2.5 font-semibold">Operational Window</th>
+                    <th class="px-4 py-2.5 font-semibold">Planned Breaks</th>
+                    <th class="px-4 py-2.5 font-semibold">Status</th>
+                    <th class="px-4 py-2.5 font-semibold text-right">Shift Controls</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-border-sub">
+                {% for shift in shifts or [] %}
+                <tr id="shift-row-{{ shift.id }}" class="hover:bg-panel-light/60 transition">
+                    <td class="px-4 py-3 font-semibold text-content-primary">
+                        <div class="flex items-center gap-2">
+                            <span class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-base border border-border font-semibold text-accent-amber">
+                                #{{ shift.id }}
+                            </span>
+                            <span>{{ shift.name }}</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 font-mono text-content-secondary">
+                        {{ shift.start_time.strftime('%H:%M') }} &ndash; {{ shift.end_time.strftime('%H:%M') }}
+                    </td>
+                    <td class="px-4 py-3 font-mono text-content-secondary">
+                        {{ shift.planned_break_minutes }} min deduction
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if shift.is_active %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-status-green-muted text-status-green border border-status-green-border">
+                            ACTIVE
+                        </span>
+                        {% else %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-semibold bg-base text-content-muted border border-border">
+                            INACTIVE
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right space-x-1.5 font-mono">
+                        <a href="/shifts/{{ shift.id }}/edit" class="text-xs px-2.5 py-1 rounded bg-base hover:bg-panel-light text-content-secondary hover:text-content-primary border border-border transition">
+                            CONFIG
+                        </a>
+                        <button hx-delete="/shifts/{{ shift.id }}" hx-target="#shift-row-{{ shift.id }}" hx-swap="outerHTML" hx-confirm="Confirm deactivating shift {{ shift.name }}?" class="text-xs px-2.5 py-1 rounded bg-status-red-muted hover:bg-status-red/25 text-status-red border border-status-red-border transition">
+                            DISABLE
+                        </button>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="text-center py-6 font-mono text-xs text-content-muted">
+                        NO SHIFT SCHEDULES CONFIGURED. CLICK "ADD SHIFT" TO CREATE ONE.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+
+{% block title %}Downtime & Changeover Control // OEETracker{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+    <!-- Header -->
+    <div class="flex items-center justify-between bg-panel border border-border rounded-lg p-3">
+        <div class="flex items-center gap-3">
+            <div class="h-8 w-1 bg-status-amber rounded-full"></div>
+            <div>
+                <h1 class="font-display font-bold text-base uppercase tracking-tight text-content-primary">
+                    Downtime Logging & Changeover Tracking
+                </h1>
+                <p class="font-mono text-xs text-content-muted">Start/stop stoppage events, assign root cause reasons, and record unplanned delays</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Ongoing Downtime Beacon Area -->
+    <div class="bg-panel border {% if open_events %}border-status-red-border bg-status-red-muted/20{% else %}border-border{% endif %} rounded-lg p-4">
+        <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+                <span class="relative flex h-2.5 w-2.5">
+                    <span class="{% if open_events %}animate-ping bg-status-red{% else %}bg-status-green{% endif %} absolute inline-flex h-full w-full rounded-full opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 {% if open_events %}bg-status-red{% else %}bg-status-green{% endif %}"></span>
+                </span>
+                <h2 class="font-mono text-xs font-bold uppercase tracking-wider text-content-primary">
+                    Active Unresolved Stoppages {% if open_events %}({{ open_events | length }}){% endif %}
+                </h2>
+            </div>
+            <span class="font-mono text-[11px] text-content-muted">// LIVE_OPERATOR_FEED</span>
+        </div>
+
+        {% if open_events %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {% for event in open_events %}
+            <div class="bg-base border border-status-red-border rounded p-3 flex flex-col justify-between space-y-2.5">
+                <div>
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-content-primary text-xs">{{ event.machine.name if event.machine else 'Station #' ~ event.machine_id }}</span>
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-status-red-muted text-status-red border border-status-red-border">
+                            {{ event.reason.name if event.reason else 'STOPPAGE' }}
+                        </span>
+                    </div>
+                    <div class="font-mono text-[11px] text-content-muted mt-1 flex items-center gap-1">
+                        <i data-lucide="clock" class="w-3 h-3 text-status-amber"></i>
+                        Started: {{ event.start_time.strftime('%H:%M:%S') }}
+                    </div>
+                    {% if event.notes %}
+                    <p class="font-mono text-[11px] text-content-secondary mt-1 italic">Note: {{ event.notes }}</p>
+                    {% endif %}
+                </div>
+
+                <form method="POST" action="/downtime-events/{{ event.id }}/stop" class="pt-2 border-t border-border-sub">
+                    <button type="submit" class="w-full py-1.5 bg-status-red hover:bg-status-red/90 text-content-primary font-mono text-[11px] font-bold uppercase tracking-wider rounded transition flex items-center justify-center gap-1.5 shadow-sm">
+                        <i data-lucide="square" class="w-3 h-3"></i> CLOSE STOPPAGE EVENT
+                    </button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="font-mono text-xs text-content-muted py-2 text-center bg-base/50 rounded border border-border-sub">
+            ALL STATIONS OPERATING NORMALLY. NO UNRESOLVED DOWNTIME EVENTS.
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Start New Downtime Event Form -->
+    <div class="bg-panel border border-border rounded-lg p-4">
+        <h2 class="font-mono text-xs font-bold uppercase tracking-wider text-content-primary mb-3 flex items-center gap-2">
+            <i data-lucide="play" class="w-3.5 h-3.5 text-accent-amber"></i>
+            Log Stoppage / Changeover Start
+        </h2>
+
+        <form method="POST" action="/downtime-events/start" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end font-sans text-xs">
+            <div>
+                <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">Equipment Station</label>
+                <select name="machine_id" required class="w-full bg-base border border-border rounded px-2.5 py-1.5 text-content-primary text-xs focus:outline-none focus:border-accent-amber">
+                    {% for m in machines or [] %}
+                    <option value="{{ m.id }}">{{ m.code }} &bull; {{ m.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">Downtime Classification</label>
+                <select name="reason_id" required class="w-full bg-base border border-border rounded px-2.5 py-1.5 text-content-primary text-xs focus:outline-none focus:border-accent-amber">
+                    {% for r in reasons or [] %}
+                    <option value="{{ r.id }}">{{ r.name }} [{{ 'PLANNED' if r.is_planned else 'UNPLANNED' }}]</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label class="block font-mono text-[11px] font-semibold text-content-muted uppercase tracking-wider mb-1">Operator ID / Name</label>
+                <input type="text" name="operator_name" placeholder="Operator Name" class="w-full bg-base border border-border rounded px-2.5 py-1.5 text-content-primary text-xs focus:outline-none focus:border-accent-amber">
+            </div>
+
+            <div>
+                <button type="submit" class="w-full py-1.5 bg-accent-amber hover:bg-accent-amber-hover text-base font-mono font-bold text-xs uppercase tracking-wider rounded transition flex items-center justify-center gap-1.5">
+                    <i data-lucide="timer" class="w-3.5 h-3.5"></i> START EVENT
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Event History Table -->
+    <div class="bg-panel border border-border rounded-lg overflow-hidden">
+        <div class="p-3 border-b border-border bg-panel-dark flex items-center justify-between">
+            <h2 class="font-mono text-xs font-bold uppercase tracking-wider text-content-primary">Stoppage Event History Log</h2>
+            <span class="font-mono text-[11px] text-content-muted">// AUDIT_TRAIL</span>
+        </div>
+        <table class="w-full text-left text-xs font-sans">
+            <thead class="font-mono text-[11px] uppercase tracking-wider bg-base text-content-muted border-b border-border">
+                <tr>
+                    <th class="px-4 py-2.5 font-semibold">Station</th>
+                    <th class="px-4 py-2.5 font-semibold">Reason</th>
+                    <th class="px-4 py-2.5 font-semibold">Classification</th>
+                    <th class="px-4 py-2.5 font-semibold">Start Timestamp</th>
+                    <th class="px-4 py-2.5 font-semibold">End Timestamp</th>
+                    <th class="px-4 py-2.5 font-semibold">Operator / Log Notes</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-border-sub">
+                {% for event in events or [] %}
+                <tr class="hover:bg-panel-light/60 transition">
+                    <td class="px-4 py-3 font-mono font-semibold text-content-primary">{{ event.machine.code if event.machine else '#' ~ event.machine_id }}</td>
+                    <td class="px-4 py-3 text-content-primary">{{ event.reason.name if event.reason else '—' }}</td>
+                    <td class="px-4 py-3">
+                        {% if event.reason and event.reason.is_planned %}
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-base text-content-secondary border border-border">PLANNED</span>
+                        {% else %}
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-status-red-muted text-status-red border border-status-red-border">UNPLANNED</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 font-mono text-[11px] text-content-secondary">{{ event.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                    <td class="px-4 py-3 font-mono text-[11px]">
+                        {% if event.end_time %}
+                        <span class="text-content-secondary">{{ event.end_time.strftime('%Y-%m-%d %H:%M') }}</span>
+                        {% else %}
+                        <span class="text-status-amber font-bold animate-pulse">LIVE IN-PROGRESS</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 font-mono text-[11px] text-content-muted">{{ event.operator_name or '' }} {{ ('- ' ~ event.notes) if event.notes else '' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center py-6 font-mono text-xs text-content-muted">NO DOWNTIME EVENTS RECORDED.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
