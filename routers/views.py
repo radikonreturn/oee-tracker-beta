@@ -1,6 +1,8 @@
 from datetime import datetime, time, timedelta
+import io
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
+from fastapi.responses import StreamingResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
@@ -739,13 +741,11 @@ def create_production_run_view(
     )
 
 
-@router.get("/reports")
-def reports_view(
-    request: Request,
-    machine_id: Optional[int] = None,
+def _resolve_reports_data(
+    db: Session,
+    machine_id: Optional[str] = None,
     range: str = "7d",
     granularity: str = "daily",
-    db: Session = Depends(get_db),
 ):
     machines = list(
         db.scalars(
@@ -753,7 +753,14 @@ def reports_view(
         ).all()
     )
 
-    selected_machine_id = machine_id
+    parsed_id: Optional[int] = None
+    if machine_id is not None and str(machine_id).strip():
+        try:
+            parsed_id = int(str(machine_id).strip())
+        except (ValueError, TypeError):
+            parsed_id = -1  # Invalid ID marker
+
+    selected_machine_id = parsed_id
     if selected_machine_id is None and machines:
         selected_machine_id = machines[0].id
 
@@ -761,28 +768,51 @@ def reports_view(
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
 
-    trend_data = []
+    trend_results = []
     selected_machine = None
-    if selected_machine_id:
+    if selected_machine_id and selected_machine_id != -1:
         selected_machine = db.get(Machine, selected_machine_id)
-        trend_results = calculate_oee_trend(
-            session=db,
-            machine_id=selected_machine_id,
-            start_date=start_date,
-            end_date=end_date,
-            granularity=granularity,
-        )
-        trend_data = [t.model_dump(mode="json") for t in trend_results]
+        if selected_machine:
+            trend_results = calculate_oee_trend(
+                session=db,
+                machine_id=selected_machine_id,
+                start_date=start_date,
+                end_date=end_date,
+                granularity=granularity,
+            )
+
+    return {
+        "machines": machines,
+        "selected_machine": selected_machine,
+        "selected_machine_id": selected_machine.id if selected_machine else selected_machine_id,
+        "start_date": start_date,
+        "end_date": end_date,
+        "range": range,
+        "granularity": granularity,
+        "trend_results": trend_results,
+    }
+
+
+@router.get("/reports")
+def reports_view(
+    request: Request,
+    machine_id: Optional[str] = None,
+    range: str = "7d",
+    granularity: str = "daily",
+    db: Session = Depends(get_db),
+):
+    data = _resolve_reports_data(db, machine_id, range, granularity)
+    trend_data = [t.model_dump(mode="json") for t in data["trend_results"]]
 
     return templates.TemplateResponse(
         request,
         "reports.html",
         {
-            "machines": machines,
-            "selected_machine": selected_machine,
-            "selected_machine_id": selected_machine_id,
-            "range": range,
-            "granularity": granularity,
+            "machines": data["machines"],
+            "selected_machine": data["selected_machine"],
+            "selected_machine_id": data["selected_machine_id"],
+            "range": data["range"],
+            "granularity": data["granularity"],
             "trend_data": trend_data,
         },
     )
@@ -791,47 +821,208 @@ def reports_view(
 @router.get("/reports/chart")
 def reports_chart_fragment(
     request: Request,
-    machine_id: Optional[int] = None,
+    machine_id: Optional[str] = None,
     range: str = "7d",
     granularity: str = "daily",
     db: Session = Depends(get_db),
 ):
-    machines = list(
-        db.scalars(
-            select(Machine).where(Machine.is_active == True).order_by(Machine.name)
-        ).all()
-    )
-
-    selected_machine_id = machine_id
-    if selected_machine_id is None and machines:
-        selected_machine_id = machines[0].id
-
-    days = 30 if range == "30d" else 7
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=days)
-
-    trend_data = []
-    selected_machine = None
-    if selected_machine_id:
-        selected_machine = db.get(Machine, selected_machine_id)
-        trend_results = calculate_oee_trend(
-            session=db,
-            machine_id=selected_machine_id,
-            start_date=start_date,
-            end_date=end_date,
-            granularity=granularity,
-        )
-        trend_data = [t.model_dump(mode="json") for t in trend_results]
+    data = _resolve_reports_data(db, machine_id, range, granularity)
+    trend_data = [t.model_dump(mode="json") for t in data["trend_results"]]
 
     return templates.TemplateResponse(
         request,
         "reports.html",
         {
-            "machines": machines,
-            "selected_machine": selected_machine,
-            "selected_machine_id": selected_machine_id,
-            "range": range,
-            "granularity": granularity,
+            "machines": data["machines"],
+            "selected_machine": data["selected_machine"],
+            "selected_machine_id": data["selected_machine_id"],
+            "range": data["range"],
+            "granularity": data["granularity"],
             "trend_data": trend_data,
         },
     )
+
+
+# Required packages to add to requirements.txt: openpyxl, weasyprint
+@router.get("/reports/export")
+def reports_export_view(
+    machine_id: Optional[str] = None,
+    range: str = "7d",
+    granularity: str = "daily",
+    format: str = Query(..., description="Export format: 'pdf' or 'xlsx'"),
+    db: Session = Depends(get_db),
+):
+    fmt = format.lower()
+    if fmt not in ("pdf", "xlsx"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid export format. Must be 'pdf' or 'xlsx'.",
+        )
+
+    data = _resolve_reports_data(db, machine_id, range, granularity)
+    selected_machine = data["selected_machine"]
+    if not selected_machine:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Machine with id {machine_id} not found." if machine_id else "No active machine available.",
+        )
+
+    trend_results = data["trend_results"]
+    start_date = data["start_date"]
+    end_date = data["end_date"]
+    machine_code = selected_machine.code.replace(" ", "_")
+    start_str = start_date.strftime("%Y%m%d")
+    end_str = end_date.strftime("%Y%m%d")
+    generated_at = datetime.now()
+
+    if fmt == "xlsx":
+        import openpyxl
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+        from openpyxl.utils import get_column_letter
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "OEE Report"
+        ws.views.sheetView[0].showGridLines = True
+
+        title_font = Font(name="Calibri", size=14, bold=True, color="1F2937")
+        meta_label_font = Font(name="Calibri", size=10, bold=True, color="4B5563")
+        meta_value_font = Font(name="Calibri", size=10, color="111827")
+        header_font = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="1F2937", end_color="1F2937", fill_type="solid")
+        border_thin = Border(
+            left=Side(style="thin", color="E5E7EB"),
+            right=Side(style="thin", color="E5E7EB"),
+            top=Side(style="thin", color="E5E7EB"),
+            bottom=Side(style="thin", color="E5E7EB"),
+        )
+        align_left = Alignment(horizontal="left", vertical="center")
+        align_right = Alignment(horizontal="right", vertical="center")
+        align_center = Alignment(horizontal="center", vertical="center")
+
+        ws["A1"] = "OEETracker — Historical OEE Telemetry Report"
+        ws["A1"].font = title_font
+
+        metadata = [
+            ("Station / Machine:", f"{selected_machine.name} ({selected_machine.code})"),
+            ("Evaluation Window:", f"{start_date.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')} ({range.upper()})"),
+            ("Granularity:", granularity.capitalize()),
+            ("Generated At:", generated_at.strftime("%Y-%m-%d %H:%M:%S")),
+        ]
+
+        for r_idx, (label, val) in enumerate(metadata, start=2):
+            ws.cell(row=r_idx, column=1, value=label).font = meta_label_font
+            ws.cell(row=r_idx, column=2, value=val).font = meta_value_font
+
+        headers = [
+            "Label",
+            "Start",
+            "End",
+            "Availability",
+            "Performance",
+            "Quality",
+            "OEE",
+            "Total Units",
+            "Good Units",
+            "Scrap Units",
+            "Run Time (s)",
+            "Unplanned Downtime (s)",
+        ]
+
+        header_row = 7
+        for col_idx, header in enumerate(headers, start=1):
+            cell = ws.cell(row=header_row, column=col_idx, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = align_center
+            cell.border = border_thin
+
+        current_row = header_row + 1
+        for bucket in trend_results:
+            row_data = [
+                (bucket.label, align_left, "@"),
+                (bucket.start_time.strftime("%Y-%m-%d %H:%M"), align_center, "@"),
+                (bucket.end_time.strftime("%Y-%m-%d %H:%M"), align_center, "@"),
+                (bucket.availability, align_right, "0.0%"),
+                (bucket.performance, align_right, "0.0%"),
+                (bucket.quality, align_right, "0.0%"),
+                (bucket.oee, align_right, "0.0%"),
+                (bucket.total_units, align_right, "#,##0"),
+                (bucket.good_units, align_right, "#,##0"),
+                (bucket.scrap_units, align_right, "#,##0"),
+                (bucket.run_time_seconds, align_right, "#,##0.0"),
+                (bucket.unplanned_downtime_seconds, align_right, "#,##0.0"),
+            ]
+
+            for col_idx, (val, alignment, num_fmt) in enumerate(row_data, start=1):
+                cell = ws.cell(row=current_row, column=col_idx, value=val)
+                cell.alignment = alignment
+                cell.number_format = num_fmt
+                cell.border = border_thin
+                cell.font = Font(name="Calibri", size=10)
+
+            current_row += 1
+
+        for col in ws.columns:
+            col_letter = get_column_letter(col[0].column)
+            max_len = max(len(str(cell.value or "")) for cell in col)
+            ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        filename = f"oeetracker_report_{machine_code}_{start_str}_{end_str}.xlsx"
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    elif fmt == "pdf":
+        count = len(trend_results)
+        avg_avail = sum(b.availability for b in trend_results) / count if count else 0.0
+        avg_perf = sum(b.performance for b in trend_results) / count if count else 0.0
+        avg_qual = sum(b.quality for b in trend_results) / count if count else 0.0
+        avg_oee = sum(b.oee for b in trend_results) / count if count else 0.0
+        total_units = sum(b.total_units for b in trend_results)
+        good_units = sum(b.good_units for b in trend_results)
+        scrap_units = sum(b.scrap_units for b in trend_results)
+        total_run_time = sum(b.run_time_seconds for b in trend_results)
+        total_unplanned_downtime = sum(b.unplanned_downtime_seconds for b in trend_results)
+
+        template = templates.get_template("reports_pdf.html")
+        html_content = template.render(
+            machine=selected_machine,
+            range=range,
+            granularity=granularity,
+            start_date=start_date,
+            end_date=end_date,
+            generated_at=generated_at,
+            trend_results=trend_results,
+            avg_oee=avg_oee,
+            avg_avail=avg_avail,
+            avg_perf=avg_perf,
+            avg_qual=avg_qual,
+            total_units=total_units,
+            good_units=good_units,
+            scrap_units=scrap_units,
+            total_run_time=total_run_time,
+            total_unplanned_downtime=total_unplanned_downtime,
+        )
+
+        try:
+            from weasyprint import HTML
+            pdf_bytes = HTML(string=html_content).write_pdf()
+        except (ImportError, OSError):
+            from xhtml2pdf import pisa
+            pdf_buffer = io.BytesIO()
+            pisa.CreatePDF(html_content, dest=pdf_buffer)
+            pdf_bytes = pdf_buffer.getvalue()
+
+        filename = f"oeetracker_report_{machine_code}_{start_str}_{end_str}.pdf"
+        return StreamingResponse(
+            io.BytesIO(pdf_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )

@@ -44,3 +44,33 @@ def test_machine_creation_flow_via_form_view(client: TestClient):
     assert list_res.status_code == 200
     assert "FORM-M1" in list_res.text
     assert "Form Created Machine" in list_res.text
+
+
+def test_reports_export_xlsx(client: TestClient, machine_factory):
+    m = machine_factory(code="M-EXP-1", name="Export Test Machine")
+    response = client.get(f"/reports/export?format=xlsx&machine_id={m.id}")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    assert "attachment; filename=" in response.headers["content-disposition"]
+    assert len(response.content) > 0
+
+
+def test_reports_export_pdf(client: TestClient, machine_factory):
+    m = machine_factory(code="M-EXP-2", name="Export Test Machine 2")
+    response = client.get(f"/reports/export?format=pdf&machine_id={m.id}")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert "attachment; filename=" in response.headers["content-disposition"]
+    assert len(response.content) > 0
+
+
+def test_reports_export_invalid_format(client: TestClient, machine_factory):
+    m = machine_factory()
+    response = client.get(f"/reports/export?format=invalid&machine_id={m.id}")
+    assert response.status_code == 400
+
+
+def test_reports_export_nonexistent_machine(client: TestClient):
+    response = client.get("/reports/export?format=xlsx&machine_id=999999")
+    assert response.status_code == 404
+

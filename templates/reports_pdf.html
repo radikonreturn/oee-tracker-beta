@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OEE Report - {{ machine.name }} ({{ machine.code }})</title>
+    <style>
+        @page {
+            size: a4 landscape;
+            margin: 10mm 12mm;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-size: 9pt;
+            line-height: 1.4;
+            color: #111827;
+            background-color: #ffffff;
+            margin: 0;
+            padding: 0;
+        }
+
+        .header {
+            border-bottom: 2px solid #111827;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+        }
+
+        .header-top {
+            display: table;
+            width: 100%;
+        }
+
+        .brand {
+            display: table-cell;
+            vertical-align: middle;
+            font-size: 14pt;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .brand .accent {
+            color: #d97706;
+        }
+
+        .report-badge {
+            display: table-cell;
+            text-align: right;
+            vertical-align: middle;
+            font-size: 8pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #4b5563;
+        }
+
+        .report-title {
+            font-size: 15pt;
+            font-weight: 700;
+            margin: 4px 0 6px 0;
+            color: #111827;
+        }
+
+        .meta-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8.5pt;
+            margin-top: 4px;
+        }
+
+        .meta-table td {
+            border: none;
+            padding: 2px 0;
+            color: #374151;
+        }
+
+        .meta-label {
+            font-weight: 700;
+            color: #111827;
+            width: 130px;
+        }
+
+        .summary-grid {
+            display: table;
+            width: 100%;
+            margin: 12px 0 16px 0;
+            border-spacing: 8px 0;
+        }
+
+        .summary-card {
+            display: table-cell;
+            width: 25%;
+            background-color: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .summary-card.oee-card {
+            background-color: #fffbeb;
+            border-color: #fcd34d;
+        }
+
+        .summary-card-title {
+            font-size: 7.5pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+
+        .summary-card.oee-card .summary-card-title {
+            color: #92400e;
+        }
+
+        .summary-card-value {
+            font-family: "Courier New", Courier, monospace;
+            font-size: 18pt;
+            font-weight: 700;
+            color: #111827;
+        }
+
+        .summary-card.oee-card .summary-card-value {
+            color: #b45309;
+        }
+
+        .section-title {
+            font-size: 10pt;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 14px 0 6px 0;
+            color: #111827;
+        }
+
+        table.data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8pt;
+        }
+
+        table.data-table th {
+            background-color: #f3f4f6;
+            border: 1px solid #d1d5db;
+            padding: 5px 6px;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 7pt;
+            letter-spacing: 0.5px;
+            color: #374151;
+            text-align: left;
+        }
+
+        table.data-table td {
+            border: 1px solid #e5e7eb;
+            padding: 4px 6px;
+            color: #1f2937;
+        }
+
+        table.data-table tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+
+        .num {
+            font-family: "Courier New", Courier, monospace;
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .font-bold {
+            font-weight: 700;
+        }
+
+        .text-muted {
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-top">
+            <div class="brand">OEE<span class="accent">Tracker</span></div>
+            <div class="report-badge">Executive Telemetry Report</div>
+        </div>
+        <div class="report-title">{{ machine.name }} ({{ machine.code }})</div>
+        <table class="meta-table">
+            <tr>
+                <td class="meta-label">Date Range:</td>
+                <td>{{ start_date.strftime('%Y-%m-%d %H:%M') }} &mdash; {{ end_date.strftime('%Y-%m-%d %H:%M') }} ({{ range | upper }})</td>
+                <td class="meta-label">Granularity:</td>
+                <td>{{ granularity | capitalize }}</td>
+            </tr>
+            <tr>
+                <td class="meta-label">Generated:</td>
+                <td>{{ generated_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td class="meta-label">Total / Good Units:</td>
+                <td>{{ total_units }} / {{ good_units }} (Scrap: {{ scrap_units }})</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Summary KPI Block -->
+    <div class="summary-grid">
+        <div class="summary-card oee-card">
+            <div class="summary-card-title">Average OEE</div>
+            <div class="summary-card-value">{{ "%.1f" | format(avg_oee * 100) }}%</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-card-title">Availability</div>
+            <div class="summary-card-value">{{ "%.1f" | format(avg_avail * 100) }}%</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-card-title">Performance</div>
+            <div class="summary-card-value">{{ "%.1f" | format(avg_perf * 100) }}%</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-card-title">Quality</div>
+            <div class="summary-card-value">{{ "%.1f" | format(avg_qual * 100) }}%</div>
+        </div>
+    </div>
+
+    <!-- Ledger Table -->
+    <div class="section-title">Telemetry Ledger Breakdown</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Time Bucket</th>
+                <th>Start</th>
+                <th>End</th>
+                <th class="num">OEE</th>
+                <th class="num">Avail</th>
+                <th class="num">Perf</th>
+                <th class="num">Qual</th>
+                <th class="num">Total</th>
+                <th class="num">Good</th>
+                <th class="num">Scrap</th>
+                <th class="num">Run Time</th>
+                <th class="num">Unplanned DT</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in trend_results %}
+            <tr>
+                <td class="font-bold">{{ row.label }}</td>
+                <td>{{ row.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>{{ row.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td class="num font-bold">{{ "%.1f" | format(row.oee * 100) }}%</td>
+                <td class="num">{{ "%.1f" | format(row.availability * 100) }}%</td>
+                <td class="num">{{ "%.1f" | format(row.performance * 100) }}%</td>
+                <td class="num">{{ "%.1f" | format(row.quality * 100) }}%</td>
+                <td class="num">{{ row.total_units }}</td>
+                <td class="num">{{ row.good_units }}</td>
+                <td class="num">{{ row.scrap_units }}</td>
+                <td class="num">{{ "%.1f" | format(row.run_time_seconds) }}s</td>
+                <td class="num">{{ "%.1f" | format(row.unplanned_downtime_seconds) }}s</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="12" class="text-center text-muted" style="padding: 12px;">No historical telemetry records found for this period.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
