@@ -1,0 +1,17 @@
+services:
+  oee-tracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oee-tracker-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:////app/data/oee_tracker.db
+    volumes:
+      - oee_data:/app/data
+
+volumes:
+  oee_data:
+    driver: local
